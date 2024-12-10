@@ -11,8 +11,9 @@
                 <div v-else ref="chatContainer" class="chat-container px-4">
                     <div v-for="message in messages" :key="message.id" class="mb-4">
                         <div class="message-group" :class="{'ml-auto': message.sender === 'assistant'}">
-                            <div class="message-sender font-weight-medium">
-                                {{ message.sender === 'user' ? 'You' : 'PC GPT' }}
+                            <div class="message-sender font-weight-medium d-flex justify-space-between align-center">
+                                <span>{{ message.sender === 'user' ? 'You' : 'PC GPT' }}</span>
+                                <span class="text-caption text-grey">{{ formatTime(message.timestamp) }}</span>
                             </div>
                             <v-card 
                                 class="message-card" 
@@ -48,7 +49,7 @@
                             <v-btn icon color="primary" class="rounded-circle"
                                 @click="sendMessage"
                                 :disabled="isLoading">
-                                <Icon v-if="!isLoading" icon="mdi:send" :style="{ fontSize: '20px' }" />
+                                <Icon v-if="!isLoading" icon="mdi:send" :style="{ fontSize: '1.25rem' }" />
                                 <v-progress-circular v-else indeterminate size="20" />
                             </v-btn>
                         </v-col>
@@ -121,12 +122,19 @@ const sendMessage = async () => {
         }
     }
 }
+
+const formatTime = (timestamp: Date) => {
+    return new Date(timestamp).toLocaleTimeString('en-US', {
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true
+    });
+}
 </script>
 
 <style scoped>
 .chat-container {
-    height: calc(100vh - 120px);
-    /* Adjust value based on header/input heights */
+    height: calc(100vh - 7.5px); /* Adjust value based on header/input heights */
     overflow-y: auto;
     padding: 1rem;
     scroll-behavior: smooth;
@@ -141,17 +149,18 @@ const sendMessage = async () => {
 
 .message-sender {
     padding-left: 0.5rem;
+    padding-right: 0.5rem;
     margin-bottom: 0.25rem;
     color: #666;
 }
 
 .message-card {
     border: 1px solid #e0e0e0;
-    border-radius: 18px;
+    border-radius: 1.125rem;
 }
 
 .message-card :deep(.v-card-text) {
-    padding: 8px 16px;
+    padding: 0.5rem 1rem;
 }
 
 .input-area {
@@ -173,9 +182,8 @@ const sendMessage = async () => {
 }
 
 .loading-skeleton .skeleton-line {
-    height: 20px;
-    /* margin: 2px; */
-    border-radius: 4px;
+    height: 1.25rem;
+    border-radius: 0.5rem;
     background: linear-gradient(
         90deg,
         rgba(190, 190, 190, 0.2) 25%,
@@ -188,5 +196,9 @@ const sendMessage = async () => {
 
 .loading-skeleton .skeleton-line:last-child {
     margin-bottom: 0;
+}
+
+.text-caption {
+  font-size: 0.75rem;
 }
 </style>
