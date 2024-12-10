@@ -3,14 +3,14 @@
         <v-main class="bg-grey-lighten-4">
             <v-container class="pa-0 d-flex flex-column" fluid style="height: 100vh;">
                 <!-- Chat Area -->
-                <v-row class="flex-0-1-100 overflow-y-auto ma-0" style="min-height: 0</v-row>">
+                <v-row class="flex-0-1-100 overflow-y-auto ma-0" style="min-height: 0">
                     <v-col>
                         <div v-if="messages.length === 0" class="d-flex justify-center align-center h-100">
                             <h1 class="text-h4 font-weight-light text-grey-darken-1 text-center">
                                 Let's build your dream PC together!
                             </h1>
                         </div>
-                        <div v-else class="chat-container">
+                        <div v-else ref="chatContainer" class="chat-container">
                             <div v-for="(message, index) in messages" :key="index" class="mb-4">
                                 <!-- User Message -->
                                 <div class="message-group">
@@ -68,27 +68,51 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, watch, nextTick } from 'vue'
 import { Icon } from "@iconify/vue";
 
 const userPrompt = ref('')
 const messages = ref<string[]>([])
+const chatContainer = ref<HTMLElement | null>(null)
+
+const scrollToBottom = () => {
+  nextTick(() => {
+    if (chatContainer.value) {
+      // Force layout recalculation
+      chatContainer.value.scrollTo({
+        top: chatContainer.value.scrollHeight,
+        behavior: 'smooth'
+      });
+    }
+  })
+}
+
+// Watch for changes in messages
+watch(messages, () => {
+  scrollToBottom()
+}, { deep: true })
 
 const sendMessage = () => {
-    if (userPrompt.value.trim()) {
-        messages.value.push(userPrompt.value)
-        userPrompt.value = ''
-    }
+  if (userPrompt.value.trim()) {
+    messages.value.push(userPrompt.value)
+    userPrompt.value = ''
+  }
 }
 </script>
 
 <style scoped>
 .chat-container {
+    height: calc(100vh - 120px); /* Adjust value based on header/input heights */
+    overflow-y: auto;
     padding: 1rem;
+    scroll-behavior: smooth;
+    display: flex;
+    flex-direction: column;
 }
 
 .message-group {
     max-width: 80%;
+    margin-bottom: 1rem;
 }
 
 .message-sender {
