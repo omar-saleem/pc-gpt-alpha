@@ -13,7 +13,7 @@ Welcome to PC GPT, your friendly AI companion for building the perfect PC! 💻
 
 ## 🌐 Live Demo
 
-Check out the live demo at [pc-gpt-alpha.vercel.app](https://pc-gpt-alpha.vercel.app/)
+Check out the live demo at [pc-gpt-alpha.vercel.app](https://pc-gpt-alpha.vercel.app/){:target="_blank"}
 
 ## 🚀 Technologies
 
@@ -90,7 +90,7 @@ yarn preview
 
 ## 🌐 Deployment
 
-This project is deployed on Vercel. Visit the [live demo](https://pc-gpt-alpha.vercel.app/).
+This project is deployed on Vercel. Visit the [live demo](https://pc-gpt-alpha.vercel.app/){:target="_blank"}.
 
 ## 📝 License
 
