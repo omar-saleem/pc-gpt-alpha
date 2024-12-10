@@ -1,8 +1,36 @@
-# Nuxt Minimal Starter
+# 🤖 PC GPT - Your AI PC Building Assistant
 
-Look at the [Nuxt documentation](https://nuxt.com/docs/getting-started/introduction) to learn more.
+Welcome to PC GPT, your friendly AI companion for building the perfect PC! 💻
 
-## Setup
+## ✨ Features
+
+- 🎯 Interactive chat interface
+- 💬 Real-time responses
+- 🎨 Clean, modern UI built with Vuetify
+- ⌚ Timestamps for all messages
+- 🔄 Smooth auto-scrolling chat
+- 📱 Responsive design
+
+## 🌐 Live Demo
+
+Check out the live demo at [pc-gpt-alpha.vercel.app](https://pc-gpt-alpha.vercel.app/)
+
+## 🚀 Technologies
+
+- Nuxt 3
+- Vue.js 3
+- Vuetify
+- TypeScript
+- Iconify
+
+## 💡 About
+
+PC GPT is an AI-powered chatbot designed to help you build your dream PC. Simply start a conversation, and let PC GPT guide you through the process of selecting the perfect components for your needs.
+<!-- ## 🛠️ Getting Started
+
+Look at the [PC GPT documentation](https://pc-gpt-alpha.vercel.app/docs) to learn more. -->
+
+## ⚙️ Setup
 
 Make sure to install dependencies:
 
@@ -15,12 +43,9 @@ pnpm install
 
 # yarn
 yarn install
-
-# bun
-bun install
 ```
 
-## Development Server
+## 🚀 Development Server
 
 Start the development server on `http://localhost:3000`:
 
@@ -33,12 +58,9 @@ pnpm dev
 
 # yarn
 yarn dev
-
-# bun
-bun run dev
 ```
 
-## Production
+## 🏗️ Production
 
 Build the application for production:
 
@@ -51,12 +73,9 @@ pnpm build
 
 # yarn
 yarn build
-
-# bun
-bun run build
 ```
 
-Locally preview production build:
+Preview production build locally:
 
 ```bash
 # npm
@@ -67,9 +86,22 @@ pnpm preview
 
 # yarn
 yarn preview
-
-# bun
-bun run preview
 ```
 
-Check out the [deployment documentation](https://nuxt.com/docs/getting-started/deployment) for more information.
+## 🌐 Deployment
+
+This project is deployed on Vercel. Visit the [live demo](https://pc-gpt-alpha.vercel.app/).
+
+## 📝 License
+
+MIT
+
+## 🤝 Contributing
+
+1. Fork the repository
+2. Create your feature branch
+3. Commit your changes
+4. Push to the branch
+5. Open a Pull Request
+
+<!-- Check out our [contribution guidelines](https://pc-gpt-alpha.vercel.app/contributing) for more information. -->
