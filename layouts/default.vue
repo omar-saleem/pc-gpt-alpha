@@ -1,5 +1,9 @@
 <template>
-  <div>
-    <slot />
-  </div>
+    <v-layout>
+        <Header />
+        <v-main>
+            <slot />
+        </v-main>
+    </v-layout>
 </template>
+
