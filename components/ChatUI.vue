@@ -3,10 +3,23 @@
         <!-- Chat Area -->
         <v-row class="flex-0-1-100 overflow-y-auto ma-0" style="min-height: 0">
             <v-col class="pa-0">
-                <div v-if="messages.length === 0" class="d-flex justify-center align-center h-100">
-                    <h1 class="text-h4 font-weight-light text-grey-darken-1 text-center">
+                <div v-if="messages.length === 0" class="d-flex flex-column justify-center align-center h-100">
+                    <h1 class="text-h4 font-weight-light text-grey-darken-1 text-center mb-8">
                         Let's build your dream PC together!
                     </h1>
+                    <v-btn
+                        color="primary"
+                        size="large"
+                        rounded
+                        @click="sendMessage({initial: true})"
+                        :loading="isLoading"
+                    >
+                        Get Started
+                        <Icon 
+                          icon="mdi:chevron-right"
+                          :style="{ fontSize: '1.25rem', marginLeft: '0.5rem' }"
+                        />
+                    </v-btn>
                 </div>
                 <div v-else ref="chatContainer" class="chat-container px-4">
                     <div v-for="message in messages" :key="message.id" 
@@ -73,6 +86,7 @@ import { Icon } from "@iconify/vue";
 import { getAnswer } from "@/repository/chat";
 import { marked } from 'marked';
 import DOMPurify from 'dompurify';
+import systemPrompt from '@/utils/prompts/master';
 
 interface ChatMessage {
   id: string | number;
@@ -80,6 +94,13 @@ interface ChatMessage {
   role: 'user' | 'assistant';
   timestamp: Date;
 }
+
+const systemMessages = [
+  {
+    role: 'system',
+    content: systemPrompt
+  }
+];
 
 // Markdown configuration
 marked.setOptions({
@@ -134,25 +155,33 @@ watch([messages, currentAnswer], () => {
     scrollToBottom()
 }, { deep: true })
 
-const sendMessage = async () => {
-    if (userPrompt.value.trim()) {
+const sendMessage = async ({ initial }: { initial?: boolean } = { initial: false }) => {
+    // For initial click or non-empty user input
+    if ((initial || userPrompt.value.trim()) && !isLoading.value) {
+        // Select message content based on whether it's initial or user input
+        const userContent = initial 
+            ? "Hi! I'd like to build a PC." 
+            : userPrompt.value.trim();
+        
         const userMessage = {
             id: Date.now(),
-            content: userPrompt.value,
+            content: userContent,
             role: 'user' as const,
             timestamp: new Date()
         };
         
         messages.value.push(userMessage);
-        userPrompt.value = '';
+        userPrompt.value = ''; // Clear input after sending
         isLoading.value = true;
-        
         try {
             const stream = await getAnswer({ 
-                messages: messages.value.map(m => ({
-                    role: m.role,
-                    content: m.content
-                }))
+                messages: [
+                    ...systemMessages,
+                    ...messages.value.map(m => ({
+                        role: m.role,
+                        content: m.content
+                    }))
+                ]
             });
 
             currentAnswer.value = {
