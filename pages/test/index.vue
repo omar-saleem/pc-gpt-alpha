@@ -1,75 +1,145 @@
 <script setup lang="ts">
+import { ref, watch, nextTick, onMounted } from 'vue';
+import { Icon } from "@iconify/vue";
 import { getAnswer } from "@/repository/chat";
-import { ref, watchEffect } from "vue";
 import { marked } from 'marked';
 import DOMPurify from 'dompurify';
 
-const messages = ref([]);
-const answer = ref(null);
-const question = ref("");
+interface ChatMessage {
+  id: string | number;
+  content: string;
+  role: 'user' | 'assistant';
+  timestamp: Date;
+}
 
-// Configure marked options without custom renderer
+// Markdown configuration
 marked.setOptions({
-  breaks: true, // Allow line breaks
-  gfm: true, // GitHub Flavored Markdown
+  breaks: true,
+  gfm: true,
   headerIds: false,
-  mangle: false
+  mangle: false,
+  pedantic: false, // Ensures GFM list behavior
+  smartLists: true // Better list detection
 });
 
-// Update formatMessage function to handle text blocks
 const formatMessage = (text: unknown) => {
   if (!text) return '';
-  
   try {
     const textString = String(text);
-    // Let marked handle the text block parsing
-    const rawHtml = marked(textString);
+    console.log('Raw markdown:', textString);
     
-    return DOMPurify.sanitize(rawHtml, {
-      ALLOWED_TAGS: [
-        'br', 'strong', 'em', 'h1', 'h2', 'h3',
-        'li', 'ul', 'ol', 'hr', 'p', 'code', 'pre'
-      ],
+    const rawHtml = marked(textString);
+    console.log('Parsed HTML:', rawHtml);
+    
+    const sanitizedHtml = DOMPurify.sanitize(rawHtml, {
+      ALLOWED_TAGS: ['br', 'strong', 'em', 'h1', 'h2', 'h3', 'li', 'ul', 'ol', 'hr', 'p', 'code', 'pre'],
       ALLOWED_ATTR: ['class']
     });
+    console.log('Sanitized HTML:', sanitizedHtml);
+    
+    return sanitizedHtml;
   } catch (error) {
     console.error('Error formatting message:', error);
     return String(text);
   }
 }
 
-const askQuestion = async () => {
-    messages.value.push({
-        role: "user",
-        content: question.value,
-    });
-    question.value = "";
-    const stream = await getAnswer({ messages: messages.value });
-    console.log('stream', stream);
-    answer.value = {
-        role: "assistant",
-        content: "",
-    };
-    useChatStream({
-        stream,
-        onChunk: ({ data }) => {
-            answer.value.content += data;
-        },
-        onReady: () => {
-            messages.value.push(answer.value);
-            answer.value = null;
-        },
-    });
-};
+const userPrompt = ref('')
+const messages = ref<ChatMessage[]>([])
+const chatContainer = ref<HTMLElement | null>(null)
+const isLoading = ref(false)
+const currentAnswer = ref<ChatMessage | null>(null)
 
-watchEffect(() => {
-    console.log('messages', messages.value);
-    console.log('answer', answer.value);
-}, { deep: true });
+const scrollToBottom = () => {
+    if (chatContainer.value) {
+        nextTick(() => {
+            const lastMessage = chatContainer.value!.lastElementChild;
+            if (lastMessage) {
+                lastMessage.scrollIntoView({ behavior: 'smooth' });
+            }
+        });
+    }
+}
+
+watch(messages, () => {
+    scrollToBottom();
+}, { deep: true })
+
+watch(currentAnswer, () => {
+    scrollToBottom();
+}, { deep: true })
+
+onMounted(() => {
+    nextTick(() => {
+        scrollToBottom();
+    });
+});
+
+const sendMessage = async () => {
+    if (userPrompt.value.trim() && !isLoading.value) {
+        const userContent = userPrompt.value.trim();
+        
+        const userMessage = {
+            id: Date.now(),
+            content: userContent,
+            role: 'user' as const,
+            timestamp: new Date()
+        };
+        
+        messages.value.push(userMessage);
+        userPrompt.value = ''; // Clear input after sending
+        isLoading.value = true;
+        try {
+            const stream = await getAnswer({ 
+                messages: [
+                    ...messages.value.map(m => ({
+                        role: m.role,
+                        content: m.content
+                    }))
+                ]
+            });
+
+            currentAnswer.value = {
+                id: Date.now(),
+                content: '',
+                role: 'assistant',
+                timestamp: new Date()
+            };
+
+            useChatStream({
+                stream,
+                onChunk: ({ data }) => {
+                    if (currentAnswer.value) {
+                        currentAnswer.value.content += data;
+                    }
+                },
+                onReady: () => {
+                    if (currentAnswer.value) {
+                        messages.value.push(currentAnswer.value);
+                        currentAnswer.value = null;
+                    }
+                    isLoading.value = false;
+                },
+            })
+
+        } catch (error) {
+            console.error('Error:', error);
+            isLoading.value = false;
+        }
+    }
+}
+
+const formatTime = (timestamp: Date) => {
+    return new Date(timestamp).toLocaleTimeString('en-US', {
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true
+    });
+}
 </script>
 
 <template>
-    <v-container class="pa-0 d-flex flex-column bg-grey-lighten-4" fluid style="height: 100vh;">
+    <v-container class="pa-0 d-flex flex-column bg-grey-lighten-4 v-container-height" fluid>
         <!-- Chat Area -->
         <v-row class="flex-0-1-100 overflow-y-auto ma-0" style="min-height: 0">
             <v-col class="pa-0">
@@ -83,7 +153,7 @@ watchEffect(() => {
                               {{ message.role === 'user' ? 'You' : 'Assistant' }}
                             </span>
                             <span class="text-caption text-grey">
-                              {{ new Date().toLocaleTimeString() }}
+                              {{ formatTime(message.timestamp) }}
                             </span>
                         </div>
                         <v-card class="message-card" 
@@ -92,15 +162,15 @@ watchEffect(() => {
                             <v-card-text v-html="formatMessage(message.content)"></v-card-text>
                         </v-card>
                     </div>
-                    <div v-if="answer" class="message-group mb-4 assistant-message">
+                    <div v-if="currentAnswer" class="message-group mb-4 assistant-message">
                         <div class="message-sender font-weight-medium d-flex justify-space-between align-center">
                             <span class="sender-name">Assistant</span>
                             <span class="text-caption text-grey">
-                              {{ new Date().toLocaleTimeString() }}
+                              {{ formatTime(currentAnswer.timestamp) }}
                             </span>
                         </div>
                         <v-card class="message-card bg-grey-lighten-3" flat>
-                            <v-card-text v-html="formatMessage(answer.content)"></v-card-text>
+                            <v-card-text v-html="formatMessage(currentAnswer.content)"></v-card-text>
                         </v-card>
                     </div>
                 </div>
@@ -110,10 +180,10 @@ watchEffect(() => {
         <!-- Input Area -->
         <v-row class="ma-0">
             <v-col cols="12" class="py-2 input-area">
-                <v-form @submit.prevent="askQuestion">
+                <v-form @submit.prevent="sendMessage">
                     <v-row no-gutters align="center">
                         <v-col>
-                            <v-text-field v-model="question" 
+                            <v-text-field v-model="userPrompt" 
                                         placeholder="Type your message..."
                                         variant="outlined" 
                                         density="comfortable" 
@@ -127,7 +197,8 @@ watchEffect(() => {
                             <v-btn icon color="primary" 
                                    class="rounded-circle"
                                    type="submit">
-                                <v-icon>mdi-send</v-icon>
+                                <Icon v-if="!isLoading" icon="mdi:send" :style="{ fontSize: '1.25rem' }" />
+                                <v-progress-circular v-else indeterminate size="20" />
                             </v-btn>
                         </v-col>
                     </v-row>
@@ -138,8 +209,44 @@ watchEffect(() => {
 </template>
 
 <style scoped>
+.v-container-height {
+    height: calc(100vh - 4rem); /* Height of the header */
+}
+
 .chat-container {
-    height: calc(100vh - 7.5px);
+    position: relative;
+    height: calc(100vh - 4rem); /* Height of the header */
+    background-color: rgb(243, 244, 246);
+}
+
+.chat-messages {
+    position: absolute;
+    top: 64px; /* Height of the header */
+    left: 0;
+    right: 0;
+    bottom: 64px; /* Height of input container */
+    overflow-y: auto;
+}
+
+.messages-scroll {
+    min-height: 100%;
+    padding-bottom: 1rem;
+    scroll-behavior: smooth;
+    overflow-y: auto;
+}
+
+.input-container {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background-color: rgb(243, 244, 246);
+    border-top: 1px solid #e0e0e0;
+    z-index: 100;
+}
+
+.chat-container {
+    height: calc(100vh - 4rem); /* Height of the header */
     overflow-y: auto;
     padding: 1rem;
     scroll-behavior: smooth;
@@ -147,33 +254,61 @@ watchEffect(() => {
     flex-direction: column;
 }
 
+.chat-messages {
+    position: absolute;
+    top: 64px; /* Height of the header */
+    left: 0;
+    right: 0;
+    bottom: 64px; /* Height of input container */
+    overflow-y: auto;
+}
+
+.messages-scroll {
+    min-height: 100%;
+    padding-bottom: 1rem;
+    scroll-behavior: smooth;
+    overflow-y: auto;
+}
+
+.input-container {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background-color: rgb(243, 244, 246);
+    border-top: 1px solid #e0e0e0;
+    z-index: 100;
+}
+
 .message-group {
-    width: 100%; /* Full width */
+    width: 100%;
 }
 
 .user-message {
-    /* Align user messages to right */
     display: flex;
     flex-direction: column;
     align-items: flex-end;
 }
 
 .assistant-message {
-    /* Align assistant messages to left */
     display: flex;
     flex-direction: column;
     align-items: flex-start;
 }
 
 .message-card {
-    width: 100%; /* Full width cards */
+    width: 100%;
     border: 1px solid #e0e0e0;
     border-radius: 1.125rem;
 }
 
 .message-card :deep(.v-card-text) {
-    padding: 0.75rem 1.25rem 1.0rem;
+    padding: 1.0rem 1.25rem;
     white-space: pre-wrap;
+    font-size: 0.9375rem;
+    line-height: 1.6;
+    font-weight: 400;
+    letter-spacing: 1px;
 }
 
 .message-card :deep(h1) {
@@ -199,36 +334,18 @@ watchEffect(() => {
     font-style: italic;
 }
 
-.message-card :deep(li.bullet) {
-    list-style: none;
-    padding-left: 1em;
-    position: relative;
-}
-
-.message-card :deep(li.bullet)::before {
-    content: "•";
-    position: absolute;
-    left: 0;
-}
-
-.message-card :deep(hr) {
-    margin: 0.75rem 0;
-    border: 0;
-    border-top: 1px solid #e0e0e0;
-}
-
 .message-card :deep(code) {
-  background: #f5f5f5;
-  padding: 0.2em 0.4em;
-  border-radius: 3px;
-  font-family: monospace;
+    background: #f5f5f5;
+    padding: 0.2em 0.4em;
+    border-radius: 3px;
+    font-family: monospace;
 }
 
 .message-card :deep(pre) {
-  background: #f5f5f5;
-  padding: 1em;
-  border-radius: 4px;
-  overflow-x: auto;
+    background: #f5f5f5;
+    padding: 1em;
+    border-radius: 4px;
+    overflow-x: auto;
 }
 
 .message-card :deep(ol), 
@@ -246,12 +363,10 @@ watchEffect(() => {
     min-height: min-content;
 }
 
-.message-card :deep(ol) {
-    margin-left: 2rem;
-}
-
-.message-card :deep(ul) {
-    margin-left: 2rem;
+.message-card :deep(hr) {
+    margin: 0.75rem 0;
+    border: 0;
+    border-top: 1px solid #e0e0e0;
 }
 
 .input-area {
@@ -268,5 +383,39 @@ watchEffect(() => {
 .sender-name {
     flex: 1;
     letter-spacing: 1px;
+}
+
+@keyframes pulse {
+    0% {
+        background-position: 100% 50%;
+    }
+    100% {
+        background-position: 0 50%;
+    }
+}
+
+.loading-skeleton {
+    width: 100%;
+}
+
+.loading-skeleton .skeleton-line {
+    height: 1.25rem;
+    border-radius: 0.5rem;
+    background: linear-gradient(
+        90deg,
+        rgba(190, 190, 190, 0.2) 25%,
+        rgba(129, 129, 129, 0.24) 37%,
+        rgba(190, 190, 190, 0.2) 63%
+    );
+    background-size: 400% 100%;
+    animation: pulse 1.4s ease infinite;
+}
+
+.loading-skeleton .skeleton-line:last-child {
+    margin-bottom: 0;
+}
+
+.text-caption {
+  font-size: 0.75rem;
 }
 </style>
