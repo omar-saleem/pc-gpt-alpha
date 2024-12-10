@@ -9,21 +9,26 @@
                     </h1>
                 </div>
                 <div v-else ref="chatContainer" class="chat-container px-4">
-                    <div v-for="(message, index) in messages" :key="index" class="mb-4">
-                        <!-- User Message -->
-                        <div class="message-group">
-                            <div class="message-sender font-weight-medium">You</div>
-                            <v-card class="message-card bg-white" flat>
-                                <v-card-text>{{ message }}</v-card-text>
+                    <div v-for="message in messages" :key="message.id" class="mb-4">
+                        <div class="message-group" :class="{'ml-auto': message.sender === 'assistant'}">
+                            <div class="message-sender font-weight-medium">
+                                {{ message.sender === 'user' ? 'You' : 'PC GPT' }}
+                            </div>
+                            <v-card 
+                                class="message-card" 
+                                :class="message.sender === 'user' ? 'bg-white' : 'bg-grey-lighten-3'"
+                                flat>
+                                <v-card-text>{{ message.content }}</v-card-text>
                             </v-card>
                         </div>
-                        <!-- Assistant Message -->
-                        <div class="message-group mt-2">
-                            <div class="message-sender font-weight-medium">PC GPT</div>
-                            <v-card class="message-card bg-grey-lighten-3" flat>
-                                <v-card-text>{{ message }}</v-card-text>
-                            </v-card>
-                        </div>
+                    </div>
+                    <div v-if="isLoading" class="message-group ml-auto mb-4 w-100">
+                        <div class="message-sender font-weight-medium">PC GPT</div>
+                        <v-card class="message-card bg-grey-lighten-3" flat>
+                            <v-card-text class="loading-skeleton">
+                                <div class="skeleton-line"></div>
+                            </v-card-text>
+                        </v-card>
                     </div>
                 </div>
             </v-col>
@@ -37,12 +42,14 @@
                         <v-col>
                             <v-text-field v-model="userPrompt" placeholder="Type your message..."
                                 variant="outlined" density="comfortable" hide-details rounded
-                                class="rounded-pill" bg-color="white"></v-text-field>
+                                class="rounded-pill" bg-color="white" :disabled="isLoading"></v-text-field>
                         </v-col>
                         <v-col cols="auto" class="ml-2">
                             <v-btn icon color="primary" class="rounded-circle"
-                                @click="sendMessage">
-                                <Icon icon="mdi:send" :style="{ fontSize: '20px' }" />
+                                @click="sendMessage"
+                                :disabled="isLoading">
+                                <Icon v-if="!isLoading" icon="mdi:send" :style="{ fontSize: '20px' }" />
+                                <v-progress-circular v-else indeterminate size="20" />
                             </v-btn>
                         </v-col>
                     </v-row>
@@ -56,9 +63,17 @@
 import { ref, watch, nextTick } from 'vue'
 import { Icon } from "@iconify/vue";
 
+interface ChatMessage {
+  id: number;
+  content: string;
+  sender: 'user' | 'assistant';
+  timestamp: Date;
+}
+
 const userPrompt = ref('')
-const messages = ref<string[]>([])
+const messages = ref<ChatMessage[]>([])
 const chatContainer = ref<HTMLElement | null>(null)
+const isLoading = ref(false)
 
 const scrollToBottom = () => {
     nextTick(() => {
@@ -77,10 +92,33 @@ watch(messages, () => {
     scrollToBottom()
 }, { deep: true })
 
-const sendMessage = () => {
+const sendMessage = async () => {
     if (userPrompt.value.trim()) {
-        messages.value.push(userPrompt.value)
+        // Add user message
+        messages.value.push({
+            id: Date.now(),
+            content: userPrompt.value,
+            sender: 'user',
+            timestamp: new Date()
+        })
+        
+        const userMessage = userPrompt.value
         userPrompt.value = ''
+        isLoading.value = true
+        
+        try {
+            // Simulate API call
+            await new Promise(resolve => setTimeout(resolve, 3000))
+            // Add assistant response
+            messages.value.push({
+                id: Date.now(),
+                content: `Response to: ${userMessage}`,
+                sender: 'assistant',
+                timestamp: new Date()
+            })
+        } finally {
+            isLoading.value = false
+        }
     }
 }
 </script>
@@ -109,7 +147,7 @@ const sendMessage = () => {
 
 .message-card {
     border: 1px solid #e0e0e0;
-    border-radius: 32px;
+    border-radius: 18px;
 }
 
 .message-card :deep(.v-card-text) {
@@ -119,5 +157,36 @@ const sendMessage = () => {
 .input-area {
     background-color: rgb(243, 244, 246);
     border-top: 1px solid #e0e0e0;
+}
+
+@keyframes pulse {
+    0% {
+        background-position: 100% 50%;
+    }
+    100% {
+        background-position: 0 50%;
+    }
+}
+
+.loading-skeleton {
+    width: 100%;
+}
+
+.loading-skeleton .skeleton-line {
+    height: 20px;
+    /* margin: 2px; */
+    border-radius: 4px;
+    background: linear-gradient(
+        90deg,
+        rgba(190, 190, 190, 0.2) 25%,
+        rgba(129, 129, 129, 0.24) 37%,
+        rgba(190, 190, 190, 0.2) 63%
+    );
+    background-size: 400% 100%;
+    animation: pulse 1.4s ease infinite;
+}
+
+.loading-skeleton .skeleton-line:last-child {
+    margin-bottom: 0;
 }
 </style>
