@@ -1,11 +1,43 @@
-<script setup>
+<script setup lang="ts">
 import { getAnswer } from "@/repository/chat";
 import { ref, watchEffect } from "vue";
+import { marked } from 'marked';
+import DOMPurify from 'dompurify';
 
 const messages = ref([]);
 const answer = ref(null);
-
 const question = ref("");
+
+// Configure marked options without custom renderer
+marked.setOptions({
+  breaks: true, // Allow line breaks
+  gfm: true, // GitHub Flavored Markdown
+  headerIds: false,
+  mangle: false
+});
+
+// Update formatMessage function to handle text blocks
+const formatMessage = (text: unknown) => {
+  if (!text) return '';
+  
+  try {
+    const textString = String(text);
+    // Let marked handle the text block parsing
+    const rawHtml = marked(textString);
+    
+    return DOMPurify.sanitize(rawHtml, {
+      ALLOWED_TAGS: [
+        'br', 'strong', 'em', 'h1', 'h2', 'h3',
+        'li', 'ul', 'ol', 'hr', 'p', 'code', 'pre'
+      ],
+      ALLOWED_ATTR: ['class']
+    });
+  } catch (error) {
+    console.error('Error formatting message:', error);
+    return String(text);
+  }
+}
+
 const askQuestion = async () => {
     messages.value.push({
         role: "user",
@@ -45,20 +77,30 @@ watchEffect(() => {
                     <div v-for="message in messages" 
                          class="message-group mb-4"
                          :class="message.role === 'user' ? 'user-message' : 'assistant-message'">
-                        <div class="message-sender font-weight-medium d-flex justify-space-between align-center">
-                            <span>{{ message.role === 'user' ? 'You' : 'Assistant' }}</span>
-                            <span class="text-caption text-grey">{{ new Date().toLocaleTimeString() }}</span>
+                        <div class="message-sender font-weight-medium d-flex justify-space-between align-center"
+                             :class="'text-start'">
+                            <span class="sender-name">
+                              {{ message.role === 'user' ? 'You' : 'Assistant' }}
+                            </span>
+                            <span class="text-caption text-grey">
+                              {{ new Date().toLocaleTimeString() }}
+                            </span>
                         </div>
                         <v-card class="message-card" 
                                :class="message.role === 'user' ? 'bg-white' : 'bg-grey-lighten-3'"
                                flat>
-                            <v-card-text>{{ message.content }}</v-card-text>
+                            <v-card-text v-html="formatMessage(message.content)"></v-card-text>
                         </v-card>
                     </div>
-                    <div v-if="answer" class="message-group ml-auto mb-4">
-                        <div class="message-sender font-weight-medium">Assistant</div>
+                    <div v-if="answer" class="message-group mb-4 assistant-message">
+                        <div class="message-sender font-weight-medium d-flex justify-space-between align-center">
+                            <span class="sender-name">Assistant</span>
+                            <span class="text-caption text-grey">
+                              {{ new Date().toLocaleTimeString() }}
+                            </span>
+                        </div>
                         <v-card class="message-card bg-grey-lighten-3" flat>
-                            <v-card-text>{{ answer.content }}</v-card-text>
+                            <v-card-text v-html="formatMessage(answer.content)"></v-card-text>
                         </v-card>
                     </div>
                 </div>
@@ -130,12 +172,101 @@ watchEffect(() => {
 }
 
 .message-card :deep(.v-card-text) {
-    padding: 0.5rem 1rem;
+    padding: 0.75rem 1.25rem 1.0rem;
     white-space: pre-wrap;
+}
+
+.message-card :deep(h1) {
+    font-size: 1.5em;
+    margin: 0.5em 0;
+}
+
+.message-card :deep(h2) {
+    font-size: 1.3em;
+    margin: 0.4em 0;
+}
+
+.message-card :deep(h3) {
+    font-size: 1.1em;
+    margin: 0.3em 0;
+}
+
+.message-card :deep(strong) {
+    font-weight: 600;
+}
+
+.message-card :deep(em) {
+    font-style: italic;
+}
+
+.message-card :deep(li.bullet) {
+    list-style: none;
+    padding-left: 1em;
+    position: relative;
+}
+
+.message-card :deep(li.bullet)::before {
+    content: "•";
+    position: absolute;
+    left: 0;
+}
+
+.message-card :deep(hr) {
+    margin: 0.75rem 0;
+    border: 0;
+    border-top: 1px solid #e0e0e0;
+}
+
+.message-card :deep(code) {
+  background: #f5f5f5;
+  padding: 0.2em 0.4em;
+  border-radius: 3px;
+  font-family: monospace;
+}
+
+.message-card :deep(pre) {
+  background: #f5f5f5;
+  padding: 1em;
+  border-radius: 4px;
+  overflow-x: auto;
+}
+
+.message-card :deep(ol), 
+.message-card :deep(ul) {
+    margin: 0 0 0 2rem;
+    padding: 0;
+    height: fit-content;
+    min-height: min-content;
+    display: flex;
+    flex-direction: column;
+}
+
+.message-card :deep(li) {
+    height: fit-content;
+    min-height: min-content;
+}
+
+.message-card :deep(ol) {
+    margin-left: 2rem;
+}
+
+.message-card :deep(ul) {
+    margin-left: 2rem;
 }
 
 .input-area {
     background-color: rgb(243, 244, 246);
     border-top: 1px solid #e0e0e0;
+}
+
+.message-sender {
+    padding: 0 0.5rem;
+    margin-bottom: 0.25rem;
+    width: 100%;
+}
+
+.sender-name {
+    flex: 1;
+    letter-spacing: 1px;
 }
 </style>
