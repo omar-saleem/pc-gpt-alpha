@@ -9,26 +9,33 @@
                     </h1>
                 </div>
                 <div v-else ref="chatContainer" class="chat-container px-4">
-                    <div v-for="message in messages" :key="message.id" class="mb-4">
-                        <div class="message-group" :class="{'ml-auto': message.sender === 'assistant'}">
-                            <div class="message-sender font-weight-medium d-flex justify-space-between align-center">
-                                <span>{{ message.sender === 'user' ? 'You' : 'PC GPT' }}</span>
-                                <span class="text-caption text-grey">{{ formatTime(message.timestamp) }}</span>
-                            </div>
-                            <v-card 
-                                class="message-card" 
-                                :class="message.sender === 'user' ? 'bg-white' : 'bg-grey-lighten-3'"
-                                flat>
-                                <v-card-text>{{ message.content }}</v-card-text>
-                            </v-card>
+                    <div v-for="message in messages" :key="message.id" 
+                         class="message-group mb-4"
+                         :class="message.role === 'user' ? 'user-message' : 'assistant-message'">
+                        <div class="message-sender font-weight-medium d-flex justify-space-between align-center">
+                            <span class="sender-name">
+                                {{ message.role === 'user' ? 'You' : 'PC GPT' }}
+                            </span>
+                            <span class="text-caption text-grey">
+                                {{ formatTime(message.timestamp) }}
+                            </span>
                         </div>
+                        <v-card class="message-card" 
+                               :class="message.role === 'user' ? 'bg-white' : 'bg-grey-lighten-3'"
+                               flat>
+                            <v-card-text v-html="formatMessage(message.content)"></v-card-text>
+                        </v-card>
                     </div>
-                    <div v-if="isLoading" class="message-group ml-auto mb-4 w-100">
-                        <div class="message-sender font-weight-medium">PC GPT</div>
+                    <div v-if="currentAnswer" 
+                         class="message-group mb-4 assistant-message">
+                        <div class="message-sender font-weight-medium d-flex justify-space-between align-center">
+                            <span class="sender-name">PC GPT</span>
+                            <span class="text-caption text-grey">
+                                {{ formatTime(currentAnswer.timestamp) }}
+                            </span>
+                        </div>
                         <v-card class="message-card bg-grey-lighten-3" flat>
-                            <v-card-text class="loading-skeleton">
-                                <div class="skeleton-line"></div>
-                            </v-card-text>
+                            <v-card-text v-html="formatMessage(currentAnswer.content)"></v-card-text>
                         </v-card>
                     </div>
                 </div>
@@ -61,25 +68,60 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, nextTick } from 'vue'
+import { ref, watch, nextTick } from 'vue';
 import { Icon } from "@iconify/vue";
+import { getAnswer } from "@/repository/chat";
+import { marked } from 'marked';
+import DOMPurify from 'dompurify';
 
 interface ChatMessage {
-  id: number;
+  id: string | number;
   content: string;
-  sender: 'user' | 'assistant';
+  role: 'user' | 'assistant';
   timestamp: Date;
+}
+
+// Markdown configuration
+marked.setOptions({
+  breaks: true,
+  gfm: true,
+  headerIds: false,
+  mangle: false,
+  pedantic: false, // Ensures GFM list behavior
+  smartLists: true // Better list detection
+});
+
+const formatMessage = (text: unknown) => {
+  if (!text) return '';
+  try {
+    const textString = String(text);
+    console.log('Raw markdown:', textString);
+    
+    const rawHtml = marked(textString);
+    console.log('Parsed HTML:', rawHtml);
+    
+    const sanitizedHtml = DOMPurify.sanitize(rawHtml, {
+      ALLOWED_TAGS: ['br', 'strong', 'em', 'h1', 'h2', 'h3', 'li', 'ul', 'ol', 'hr', 'p', 'code', 'pre'],
+      ALLOWED_ATTR: ['class']
+    });
+    console.log('Sanitized HTML:', sanitizedHtml);
+    
+    return sanitizedHtml;
+  } catch (error) {
+    console.error('Error formatting message:', error);
+    return String(text);
+  }
 }
 
 const userPrompt = ref('')
 const messages = ref<ChatMessage[]>([])
 const chatContainer = ref<HTMLElement | null>(null)
 const isLoading = ref(false)
+const currentAnswer = ref<ChatMessage | null>(null)
 
 const scrollToBottom = () => {
     nextTick(() => {
         if (chatContainer.value) {
-            // Force layout recalculation
             chatContainer.value.scrollTo({
                 top: chatContainer.value.scrollHeight,
                 behavior: 'smooth'
@@ -88,37 +130,57 @@ const scrollToBottom = () => {
     })
 }
 
-// Watch for changes in messages
-watch(messages, () => {
+watch([messages, currentAnswer], () => {
     scrollToBottom()
 }, { deep: true })
 
 const sendMessage = async () => {
     if (userPrompt.value.trim()) {
-        // Add user message
-        messages.value.push({
+        const userMessage = {
             id: Date.now(),
             content: userPrompt.value,
-            sender: 'user',
+            role: 'user' as const,
             timestamp: new Date()
-        })
+        };
         
-        const userMessage = userPrompt.value
-        userPrompt.value = ''
-        isLoading.value = true
+        messages.value.push(userMessage);
+        userPrompt.value = '';
+        isLoading.value = true;
         
         try {
-            // Simulate API call
-            await new Promise(resolve => setTimeout(resolve, 3000))
-            // Add assistant response
-            messages.value.push({
+            const stream = await getAnswer({ 
+                messages: messages.value.map(m => ({
+                    role: m.role,
+                    content: m.content
+                }))
+            });
+
+            currentAnswer.value = {
                 id: Date.now(),
-                content: `Response to: ${userMessage}`,
-                sender: 'assistant',
+                content: '',
+                role: 'assistant',
                 timestamp: new Date()
+            };
+
+            useChatStream({
+                stream,
+                onChunk: ({ data }) => {
+                    if (currentAnswer.value) {
+                        currentAnswer.value.content += data;
+                    }
+                },
+                onReady: () => {
+                    if (currentAnswer.value) {
+                        messages.value.push(currentAnswer.value);
+                        currentAnswer.value = null;
+                    }
+                    isLoading.value = false;
+                },
             })
-        } finally {
-            isLoading.value = false
+
+        } catch (error) {
+            console.error('Error:', error);
+            isLoading.value = false;
         }
     }
 }
@@ -143,29 +205,108 @@ const formatTime = (timestamp: Date) => {
 }
 
 .message-group {
-    max-width: 100%;
-    margin-bottom: 1rem;
+    width: 100%;
 }
 
-.message-sender {
-    padding-left: 0.5rem;
-    padding-right: 0.5rem;
-    margin-bottom: 0.25rem;
-    color: #666;
+.user-message {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+}
+
+.assistant-message {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
 }
 
 .message-card {
+    width: 100%;
     border: 1px solid #e0e0e0;
     border-radius: 1.125rem;
 }
 
 .message-card :deep(.v-card-text) {
-    padding: 0.5rem 1rem;
+    padding: 1.0rem 1.25rem;
+    white-space: pre-wrap;
+    font-size: 0.9375rem;
+    line-height: 1.6;
+    font-weight: 400;
+    letter-spacing: 1px;
+}
+
+.message-card :deep(h1) {
+    font-size: 1.5em;
+    margin: 0.5em 0;
+}
+
+.message-card :deep(h2) {
+    font-size: 1.3em;
+    margin: 0.4em 0;
+}
+
+.message-card :deep(h3) {
+    font-size: 1.1em;
+    margin: 0.3em 0;
+}
+
+.message-card :deep(strong) {
+    font-weight: 600;
+}
+
+.message-card :deep(em) {
+    font-style: italic;
+}
+
+.message-card :deep(code) {
+    background: #f5f5f5;
+    padding: 0.2em 0.4em;
+    border-radius: 3px;
+    font-family: monospace;
+}
+
+.message-card :deep(pre) {
+    background: #f5f5f5;
+    padding: 1em;
+    border-radius: 4px;
+    overflow-x: auto;
+}
+
+.message-card :deep(ol), 
+.message-card :deep(ul) {
+    margin: 0 0 0 2rem;
+    padding: 0;
+    height: fit-content;
+    min-height: min-content;
+    display: flex;
+    flex-direction: column;
+}
+
+.message-card :deep(li) {
+    height: fit-content;
+    min-height: min-content;
+}
+
+.message-card :deep(hr) {
+    margin: 0.75rem 0;
+    border: 0;
+    border-top: 1px solid #e0e0e0;
 }
 
 .input-area {
     background-color: rgb(243, 244, 246);
     border-top: 1px solid #e0e0e0;
+}
+
+.message-sender {
+    padding: 0 0.5rem;
+    margin-bottom: 0.25rem;
+    width: 100%;
+}
+
+.sender-name {
+    flex: 1;
+    letter-spacing: 1px;
 }
 
 @keyframes pulse {

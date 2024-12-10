@@ -3,7 +3,7 @@ import { getChatStream } from '../utils/openai'
 export default defineEventHandler(async (event) => {
     try {
         const body = await readBody(event)
-        console.log('Received body:', body) // Debug log
+        // console.log('Received body:', body) // Debug log
 
         if (!body.messages || !Array.isArray(body.messages)) {
             throw new Error('Invalid messages format')
@@ -27,7 +27,7 @@ export default defineEventHandler(async (event) => {
                 for await (const chunk of stream) {
                     const content = chunk.choices[0]?.delta?.content || ''
                     if (content) {
-                        console.log('Sending chunk:', content) // Debug log
+                        // console.log('Sending chunk:', content) // Debug log
                         controller.enqueue(new TextEncoder().encode(content))
                     }
                 }

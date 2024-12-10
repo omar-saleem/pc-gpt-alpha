@@ -4,9 +4,8 @@ const parseStreamChunks = (stream: string) => {
         return []
     }
 
-    // Split while keeping the newline characters
+    // Split by newlines while preserving markdown syntax
     const lines = stream.split(/(?<=\n)/)
-    console.log('Split lines:', lines)
 
     const dataLines = lines
         .map(line => {
@@ -15,21 +14,26 @@ const parseStreamChunks = (stream: string) => {
                 return { text: line }
             }
 
-            // Handle prefixed and raw JSON
-            const content = line.includes('data: ') 
-                ? line.replace('data: ', '')
-                : line
+            // Extract content after data prefix while preserving markdown
+            if (line.startsWith('data: ')) {
+                const content = line.slice(6) // Remove 'data: ' prefix
 
-            if (content === '[DONE]') {
-                return null
+                if (content === '[DONE]') {
+                    return null
+                }
+
+                try {
+                    // Try parsing as JSON first
+                    const parsed = JSON.parse(content)
+                    return parsed
+                } catch (e) {
+                    // If not JSON, preserve as raw markdown text
+                    return { text: content }
+                }
             }
 
-            try {
-                return JSON.parse(content)
-            } catch (e) {
-                // Preserve raw text with newlines
-                return { text: line }
-            }
+            // Return non-data lines as-is to preserve markdown
+            return { text: line }
         })
         .filter(Boolean)
 
