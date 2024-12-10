@@ -21,4 +21,7 @@ export default defineNuxtConfig({
       },
     },
   },
+  runtimeConfig: {
+    openAiApiKey: process.env.NUXT_OPENAI_API_KEY,
+  },
 })
